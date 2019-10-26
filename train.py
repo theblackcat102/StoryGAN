@@ -13,6 +13,7 @@ import dateutil.tz
 import numpy as np
 import functools
 import clevr_data as data
+from clevr_data import video_transform
 import pdb
 dir_path = (os.path.abspath(os.path.join(os.path.realpath(__file__), './.')))
 sys.path.append(dir_path)
@@ -38,7 +39,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     dir_path = '../clevr_dataset/'
-    #args.cfg_file = './cfg/clevr.yml'
+    args.cfg_file = './cfg/pororo.yml'
     if args.cfg_file is not None:
         cfg_from_file(args.cfg_file)
 
@@ -67,14 +68,6 @@ if __name__ == "__main__":
         lambda x: x[:n_channels, ::],
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    def video_transform(video, image_transform):
-        vid = []
-        for im in video:
-            vid.append(image_transform(im))
-
-        vid = torch.stack(vid).permute(1, 0, 2, 3)
-
-        return vid
     
     video_transforms = functools.partial(video_transform, image_transform=image_transforms)
 
@@ -95,5 +88,5 @@ if __name__ == "__main__":
         testdataset, batch_size=24 * num_gpu,
         drop_last=True, shuffle=False, num_workers=int(cfg.WORKERS))
 
-    algo = GANTrainer(output_dir, cfg.ST_WEIGHT, test_sample_save_dir)
+    algo = GANTrainer(output_dir, cfg.ST_WEIGHT, test_sample_save_dir, cfg.TENSORBOARD)
     algo.train(imageloader, storyloader, testloader)
