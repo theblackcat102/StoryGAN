@@ -57,3 +57,23 @@ class DynamicFilterLayer(nn.Module): #MergeLayer
             output = torch.sum(input_localexpand*filters, dim=1, keepdim=True)
              
         return output
+
+class DynamicFilterLayer1D(nn.Module): #MergeLayer
+    def __init__(self, filter_size, stride=1, pad=0):
+        super(DynamicFilterLayer1D, self).__init__()
+        self.filter_size = filter_size #tuple 3
+        self.stride = stride           #tuple 2
+        self.pad = pad                 #tuple 2
+ 
+    def forward(self, _input, **kwargs):
+        image = _input[0]
+        filters = _input[1]
+        image = image.unsqueeze(0)
+        output = []
+        for i in range(image.shape[1]): # 60 times
+            result = F.conv1d(image[:,i], filters[i], padding = self.pad, stride = self.stride)
+            output.append(result)
+
+        output = torch.cat(output, 0)
+        #pdb.set_trace()
+        return output

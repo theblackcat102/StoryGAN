@@ -1,5 +1,5 @@
 CONFIG_NAME: 'StoryGAN'
-DATASET_NAME: 'pororoSV'
+DATASET_NAME: 'pororoSV_rand_sample'
 GPU_ID: '0'
 Z_DIM: 10
 IMSIZE: 64

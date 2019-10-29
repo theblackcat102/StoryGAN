@@ -105,7 +105,12 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+logs
+output/
+output_*
+*_SVHN/
+.vscode
+yunzhu_checkpoint/
 # Spyder project settings
 .spyderproject
 .spyproject

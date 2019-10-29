@@ -23,13 +23,11 @@ from miscc.utils import mkdir_p
 from trainer import GANTrainer
 
 
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a GAN network')
     parser.add_argument('--cfg', dest='cfg_file',
                         help='optional config file',
-                        default='./cfg/clevr.yml', type=str)
+                        default='./cfg/pororo.yml', type=str)
     parser.add_argument('--gpu',  dest='gpu_id', type=str, default='0')
     parser.add_argument('--data_dir', dest='data_dir', type=str, default='')
     parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -39,7 +37,6 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     dir_path = '../clevr_dataset/'
-    args.cfg_file = './cfg/pororo.yml'
     if args.cfg_file is not None:
         cfg_from_file(args.cfg_file)
 
@@ -74,7 +71,7 @@ if __name__ == "__main__":
     storydataset = data.StoryDataset(dir_path, video_transforms, cfg.VIDEO_LEN, True)
     imagedataset = data.ImageDataset(dir_path, image_transforms, cfg.VIDEO_LEN, True)
     testdataset = data.StoryDataset(dir_path, video_transforms, cfg.VIDEO_LEN, False)
-
+    print(cfg.TRAIN.IM_BATCH_SIZE * num_gpu, cfg.TRAIN.ST_BATCH_SIZE * num_gpu)
     imageloader = torch.utils.data.DataLoader(
         imagedataset, batch_size=cfg.TRAIN.IM_BATCH_SIZE * num_gpu,
         drop_last=True, shuffle=True, num_workers=int(cfg.WORKERS))
@@ -85,8 +82,8 @@ if __name__ == "__main__":
 
 
     testloader = torch.utils.data.DataLoader(
-        testdataset, batch_size=24 * num_gpu,
+        testdataset, batch_size=8 * num_gpu,
         drop_last=True, shuffle=False, num_workers=int(cfg.WORKERS))
 
-    algo = GANTrainer(output_dir, cfg.ST_WEIGHT, test_sample_save_dir, cfg.TENSORBOARD)
+    algo = GANTrainer(output_dir, cfg, cfg.ST_WEIGHT, test_sample_save_dir, cfg.TENSORBOARD)
     algo.train(imageloader, storyloader, testloader)

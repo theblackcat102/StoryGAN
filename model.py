@@ -6,6 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
 import pdb
+from spectral import SpectralNorm
 if torch.cuda.is_available():
     T = torch.cuda
 else:
@@ -13,9 +14,18 @@ else:
 
 def conv3x3(in_planes, out_planes, stride=1):
     "3x3 convolution with padding"
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=1, bias=False)
+    return SpectralNorm(nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=1, bias=False))
 
+class GLU(nn.Module):
+    def __init__(self):
+        super(GLU, self).__init__()
+
+    def forward(self, x):
+        nc = x.size(1)
+        assert nc % 2 == 0, 'channels dont divide 2!'
+        nc = int(nc/2)
+        return x[:, :nc] * F.sigmoid(x[:, nc:])
 
 # Upsale the spatial size by a factor of 2
 def upBlock(in_planes, out_planes):
@@ -23,9 +33,42 @@ def upBlock(in_planes, out_planes):
         nn.Upsample(scale_factor=2, mode='nearest'),
         conv3x3(in_planes, out_planes),
         nn.BatchNorm2d(out_planes),
-        nn.ReLU(True))
+        nn.ReLU())
     return block
 
+class Self_Attn(nn.Module):
+    """ Self attention Layer"""
+    def __init__(self,in_dim,activation):
+        super(Self_Attn,self).__init__()
+        self.chanel_in = in_dim
+        self.activation = activation
+        
+        self.query_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
+        self.key_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
+        self.value_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
+        self.gamma = nn.Parameter(torch.zeros(1))
+
+        self.softmax  = nn.Softmax(dim=-1) #
+    def forward(self,x):
+        """
+            inputs :
+                x : input feature maps( B X C X W X H)
+            returns :
+                out : self attention value + input feature 
+                attention: B X N X N (N is Width*Height)
+        """
+        m_batchsize,C,width ,height = x.size()
+        proj_query  = self.query_conv(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X CX(N)
+        proj_key =  self.key_conv(x).view(m_batchsize,-1,width*height) # B X C x (*W*H)
+        energy =  torch.bmm(proj_query,proj_key) # transpose check
+        attention = self.softmax(energy) # BX (N) X (N) 
+        proj_value = self.value_conv(x).view(m_batchsize,-1,width*height) # B X C X N
+
+        out = torch.bmm(proj_value,attention.permute(0,2,1) )
+        out = out.view(m_batchsize,C,width,height)
+        
+        out = self.gamma*out + x
+        return out, attention
 
 class ResBlock(nn.Module):
     def __init__(self, channel_num):
@@ -241,8 +284,10 @@ class StoryGAN(nn.Module):
         self.upsample2 = upBlock(ngf // 2, ngf // 4)
         # -> ngf/8 x 32 x 32
         self.upsample3 = upBlock(ngf // 4, ngf // 8)
+        self.attn1 = Self_Attn(ngf // 8, 'relu')
         # -> ngf/16 x 64 x 64
         self.upsample4 = upBlock(ngf // 8, ngf // 16)
+        # self.attn2 = Self_Attn(ngf // 16, 'relu')
         # -> 3 x 64 x 64
         self.img = nn.Sequential(
             conv3x3(ngf // 16, 3),
@@ -342,7 +387,9 @@ class StoryGAN(nn.Module):
         h_code = self.upsample1(zmc_all)
         h_code = self.upsample2(h_code)
         h_code = self.upsample3(h_code)
+        h_code, _ = self.attn1(h_code)
         h_code = self.upsample4(h_code)
+        # h_code, p1 = self.attn2(h_code)
         # state size 3 x 64 x 64
         h = self.img(h_code)
         fake_video = h.view(h.size(0) // self.video_len, self.video_len, self.n_channels, h.size(3), h.size(3))
@@ -373,7 +420,9 @@ class StoryGAN(nn.Module):
         h_code = self.upsample1(zmc_all)
         h_code = self.upsample2(h_code)
         h_code = self.upsample3(h_code)
+        h_code, _ = self.attn1(h_code)
         h_code = self.upsample4(h_code)
+        # h_code, _ = self.attn2(h_code)
         # state size 3 x 64 x 64
         fake_img = self.img(h_code)
         return None, fake_img, m_mu, m_logvar

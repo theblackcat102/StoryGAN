@@ -99,9 +99,9 @@ def compute_generator_loss(netD, fake_imgs, real_labels, fake_catelabels, condit
 #############################
 def weights_init(m):
 	classname = m.__class__.__name__
-	if classname.find('Conv') != -1:
-		m.weight.data.normal_(0.0, 0.02)
-	elif classname.find('BatchNorm') != -1:
+	# if classname.find('Conv') != -1:
+	# 	m.weight.data.normal_(0.0, 0.02)
+	if classname.find('BatchNorm') != -1:
 		m.weight.data.normal_(1.0, 0.02)
 		m.bias.data.fill_(0)
 	elif classname.find('Linear') != -1:
@@ -155,7 +155,7 @@ def save_story_results(ground_truth, images, epoch, image_dir, video_len = 5, te
 		gts = images_to_numpy(gts)
 		all_images = np.concatenate([all_images, gts], axis = 1)
 	if writer:
-		writer.add_image('Image', all_images, step+1)
+		writer.add_image('Image', np.transpose(all_images, (2, 0, 1))/255, steps+1)
 	output = PIL.Image.fromarray(all_images)
 	if not test:
 		output.save('%s/fake_samples_epoch_%03d.png' % (image_dir, epoch) )
@@ -201,23 +201,24 @@ def save_test_samples(netG, dataloader, save_path, writer=None, steps=0):
 	labels = []
 	gen_images = []
 	real_images = []
-	for i, batch in enumerate(dataloader, 0):
-		real_cpu = batch['images']
-		motion_input = batch['description']
-		content_input = batch['description']
-		catelabel = batch['label']
-		real_imgs = Variable(real_cpu)
-		motion_input = Variable(motion_input)
-		content_input = Variable(content_input)
-		if cfg.CUDA:
-			real_imgs = real_imgs.cuda()            
-			motion_input = motion_input.cuda()
-			content_input = content_input.cuda()
-			catelabel = catelabel.cuda()
+	with torch.no_grad():
+		for i, batch in enumerate(dataloader, 0):
+			real_cpu = batch['images']
+			motion_input = batch['description']
+			content_input = batch['description']
+			catelabel = batch['label']
+			real_imgs = Variable(real_cpu)
+			motion_input = Variable(motion_input)
+			content_input = Variable(content_input)
+			if cfg.CUDA:
+				real_imgs = real_imgs.cuda()            
+				motion_input = motion_input.cuda()
+				content_input = content_input.cuda()
+				catelabel = catelabel.cuda()
 
-		_, fake, _,_,_,_ = netG.sample_videos(motion_input, content_input)
-		save_story_results(real_cpu, fake, i, save_path, writer=writer, steps=steps)
-		break
+			_, fake, _,_,_,_ = netG.sample_videos(motion_input, content_input)
+			save_story_results(real_cpu, fake, i, save_path, writer=writer, steps=steps)
+			break
 
 	for i, batch in enumerate(dataloader, 0):
 		if i>10:
@@ -238,6 +239,3 @@ def save_test_samples(netG, dataloader, save_path, writer=None, steps=0):
 		_, fake, _,_,_,_ = netG.sample_videos(motion_input, content_input)
 		save_story_results(real_cpu, fake, i, save_path, 5, True, writer=writer, steps=steps)
 		break
-   
-
-			

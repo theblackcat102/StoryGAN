@@ -85,8 +85,8 @@ class ImageDataset(torch.utils.data.Dataset):
 		sent = self.descriptions[item][se]
 
 		gif_file = os.path.join(self.gif_path, sent['img']+'.gif')
-		# sample_frame = random.uniform(0, sent['frame_count'])
-		im, seek_pos = read_gif_file(gif_file, seek_pos=1)
+		sample_frame = int(random.uniform(0, sent['frame_count']))
+		im, seek_pos = read_gif_file(gif_file, seek_pos=sample_frame)
 
 		image = np.array(im.convert("RGB"))
 
@@ -94,7 +94,6 @@ class ImageDataset(torch.utils.data.Dataset):
 
 		des = random.choice(sent['sent_embed'])
 		super_label = np.asarray(sent['label'])
-
 
 		content = []
 		flow = self.descriptions[item]

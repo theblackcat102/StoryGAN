@@ -21,7 +21,7 @@ from miscc.utils import weights_init
 from miscc.utils import save_story_results, save_model
 from miscc.utils import KL_loss, images_to_numpy
 from miscc.utils import compute_discriminator_loss, compute_generator_loss, save_test_samples
-from model import StoryGAN, D_IMG, D_STY
+
 from shutil import copyfile
 
 class GANTrainer(object):
@@ -50,6 +50,7 @@ class GANTrainer(object):
 
 	# ############# For training stageI GAN #############
 	def load_networks(self):
+		from model_yunzhu import StoryGAN, D_IMG, D_STY
 		netG = StoryGAN(self.video_len)
 		netG.apply(weights_init)
 		print(netG)
@@ -112,6 +113,7 @@ class GANTrainer(object):
 		self.testdataset = None
 		netG, netD_im, netD_st = self.load_networks()
 
+
 		im_real_labels = Variable(torch.FloatTensor(self.imbatch_size).fill_(1))
 		im_fake_labels = Variable(torch.FloatTensor(self.imbatch_size).fill_(0))
 		st_real_labels = Variable(torch.FloatTensor(self.stbatch_size).fill_(1))
@@ -142,12 +144,6 @@ class GANTrainer(object):
 			self.build_tensorboard()
 		loss = {}
 		step = 0
-		torch.save({
-			'netG': netG, 
-			'netD_im': netD_im,
-			'netD_st': netD_st,
-		}, os.path.join(self.model_dir, 'barebone.pth'))
-
 		for epoch in range(self.max_epoch):
 			start_t = time.time()
 			if epoch % lr_decay_step == 0 and epoch > 0:
@@ -202,12 +198,12 @@ class GANTrainer(object):
 					#######################################################
 					# (2) Generate fake stories and images
 					######################################################
-					with torch.no_grad():
-						im_inputs = (im_motion_input, im_content_input)
-						_, im_fake, im_mu, im_logvar = netG.sample_images(*im_inputs)
 
-						st_inputs = (st_motion_input, st_content_input)
-						_, st_fake, c_mu, c_logvar, m_mu, m_logvar = netG.sample_videos(*st_inputs)
+					im_inputs = (im_motion_input, im_content_input)
+					_, im_fake, im_mu, im_logvar = netG.sample_images(*im_inputs)
+
+					st_inputs = (st_motion_input, st_content_input)
+					_, st_fake, c_mu, c_logvar, m_mu, m_logvar = netG.sample_videos(*st_inputs)
 
 
 					############################
@@ -303,13 +299,11 @@ class GANTrainer(object):
 	
 	def evaluate(self, weight_path, testloader, output_path):
 		self.testloader = testloader
-		model_structure = torch.load(os.path.join(self.model_dir, 'barebone.pth'))
-		netG = model_structure['netG']
-		# netG, _, _ = self.load_networks()
-		netG_weights = torch.load(weight_path)
-		netG.load_state_dict(netG_weights)
+		# model_structure = torch.load(os.path.join(self.model_dir, 'barebone.pth'))
+		
+		# netG = model_structure['netG']
+		netG, _, _ = self.load_networks()
 		st_id = 0
-
 		netG = netG.cuda()
 		netG.eval()
 		with torch.no_grad():
@@ -318,7 +312,7 @@ class GANTrainer(object):
 				st_real_cpu = st_batch['images']
 				st_motion_input = st_batch['description']
 				st_content_input = st_batch['description']
-				st_catelabel = st_batch['label']
+				st_labels = st_batch['label']
 				st_real_imgs = Variable(st_real_cpu)
 				st_motion_input = Variable(st_motion_input)
 				st_content_input = Variable(st_content_input)
@@ -327,7 +321,8 @@ class GANTrainer(object):
 					st_real_imgs = st_real_imgs.cuda()
 					st_motion_input = st_motion_input.cuda()
 					st_content_input = st_content_input.cuda()
-					st_catelabel = st_catelabel.cuda()			
+					st_labels = st_labels.cuda()			
+				st_motion_input = torch.cat((st_motion_input, st_labels), 2)
 				st_inputs = (st_motion_input, st_content_input)
 				_, st_fake, _, _, _, _ = netG.sample_videos(*st_inputs)
 				for story_imgs in st_fake:
